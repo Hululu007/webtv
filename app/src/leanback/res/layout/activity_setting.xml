@@ -329,7 +329,6 @@
             android:background="@drawable/selector_item"
             android:focusable="true"
             android:focusableInTouchMode="true"
-            android:nextFocusDown="@id/backup"
             android:orientation="horizontal">
 
             <com.google.android.material.textview.MaterialTextView
@@ -466,12 +465,6 @@
         </androidx.appcompat.widget.LinearLayoutCompat>
 
         <androidx.appcompat.widget.LinearLayoutCompat
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:orientation="horizontal">
-
-        <androidx.appcompat.widget.LinearLayoutCompat
             android:id="@+id/remotePublic"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -498,6 +491,12 @@
                 android:textSize="12sp" />
 
         </androidx.appcompat.widget.LinearLayoutCompat>
+
+        <androidx.appcompat.widget.LinearLayoutCompat
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="horizontal">
 
         <androidx.appcompat.widget.LinearLayoutCompat
             android:id="@+id/backup"
