@@ -1,6 +1,6 @@
 # Changelog
 
-## 未发布 — 修复电视端设置页遥控器无法继续下移
+## 5.17.1 — 修复电视端设置页遥控器无法继续下移
 
 - **电视端设置页**：「图像大小」往下的项目用遥控器下键选不到（`siteBlock`、`recordSync`、`公网远程`，以及语言 / 关于 / 编码能力等）。两个原因叠加：`图像大小` 被硬编码了 `nextFocusDown="@id/backup"`，会跳过中间 6 项；而 `公网远程` 在新增「安全远程播放」功能时被误插进了 `备份 / 恢复` 所在的**水平容器**里，其 `match_parent` 宽度把按权重分配的 `备份` `恢复` 挤成零宽，导致跳转目标落在一个不可见的项上。
 - 修法：移除该 `nextFocusDown`，恢复自然顺序（图像大小 → 语言 → 关于 → 编码能力 → 站点屏蔽 → 播放进度同步 → 公网远程 → 备份/恢复）；把 `公网远程` 提升为顶层全宽项，未动 `备份` `恢复` 的并排布局。
@@ -35,21 +35,21 @@
 - 比对后三语言完全一致：main 各 1164 条（含 19 个选项数组，另有 1 条 `translatable="false"`），mobile 各 36 条（含 1 个），leanback 各 11 条。
 - 「与默认相同」的 45 条经逐条确认均无需翻译：符号（`→` `←` `-` `+`）、技术专名（`Token` `Proxy` `UA` `EPG` `LUT` `DoH` `GitHub`）、播放内核与渲染名（`EXO`/`IJK`/`MPV`、`Surface`/`Texture`）、URL/目录示例，以及纯占位符格式串（`%1$s · %2$s`）。
 
-## 5.16.0 — 三处安全修复（重定向绕过 ×2、DASH XML 解析）
+### 三处安全修复（重定向绕过 ×2、DASH XML 解析）
 
-### 修复
+#### 修复
 
 - `server/process/M3u8`：此前只对查询参数里的 URL 做 `UrlSafety` 校验，随后交给**默认跟随重定向**的 OkHttp 客户端。上游只要返回 `302` 指向内网地址即可绕过检查，把设备变成 SSRF 中继。改为**手动逐跳跟随、并对每一跳重新校验**——重定向功能不受影响（不少直播源依赖 302 跳转），playlist 改写所用的 base 仍是最后一跳的 URL，行为不变。
 - `androidx/media3/mpvplayer/MpvHlsProxy`（请求路径）：同一类问题——`fetch()` 校验了 `isSafeMediaUrl`，但它使用的客户端同样会跟随重定向，`302` 指向回环或 `169.254` 元数据地址即可绕过。已改为逐跳重新校验，并保留放宽的媒体策略（局域网流媒体照常播放）。
 - `androidx/media3/mpvplayer/MpvHlsProxy`（XML 解析）：解析来自播放源的 DASH manifest 时，`DocumentBuilderFactory` 默认会解析 DTD 与外部实体，构造的 manifest 可借此访问内网地址或触发实体膨胀耗尽内存。已禁用 DOCTYPE 声明、外部实体与外部 DTD，并关闭 XInclude 与实体展开；该改写逻辑在解析失败时本就回退原文，因此功能无损。
 
-### 说明
+#### 说明
 
 - 两处均出自一次自动化的代码安全审计，并经人工逐条复核确认（同批 5 条报告中另有 2 条属已注释说明的设计取舍、1 条尚待专门复核）。
 
-## 5.16.0 — APK 产物改用带版本号的文件名，发版不再受 CDN 缓存影响
+### APK 产物改用带版本号的文件名，发版不再受 CDN 缓存影响
 
-### 变更
+#### 变更
 
 - 发版产物改名为 `<flavor>-<version>.apk`（如 `mobile-arm64_v8a-5.16.0.apk`）；更新清单的 `apk` 字段随之指向新名字，并新增 `flavor` 字段标识变体。
 - 起因是 EdgeOne 的**分档缓存**：清单与首页是 `no-cache`（每次回源、实时），而 APK 二进制是 `public, max-age=300`。文件名跨版本复用，就意味着发版后最多 5 分钟内下载到的仍可能是上一版——`Updater.validate()` 的 sha256 校验会因此失败，而同一窗口内的三次重试同样拿不到新包（详见 `debug/cnb-双仓库架构评审-20261008.md` §六 的实测）。文件名带上版本号后，每次发版都是一个 CDN 从未见过的 URL，天然 MISS。
@@ -57,79 +57,79 @@
 - 新增 `scripts/bump_version.sh`：一条命令同步 README 与 Pages 站点的版本标记和 10 个下载链接（`--dry-run` 可先预览），替代手改十来个位置。
 - 新增 `scripts/test_apk_index.py`（14 条断言）并接入 CI，覆盖下载页对「带版本 / 不带版本」两种清单的处理，以及缺包时必须报错——这个脚本历史上就因包数写死让一次发版失败过。
 
-### 修复
+#### 修复
 
 - 发版前置检查新增一项：`docs/index.html` 的下载链接必须与将要发布的资产名一致，否则在编译前失败并给出修复命令。资产改名后 Pages 上的旧链接会 404，而这种坏法在有人点击之前是完全静默的。
 - 同一条检查里的版本标记正则此前只认 `最新版本：**vX.Y.Z**`（带全角冒号）。README 重做成项目主页风格时去掉了冒号，正则从此失配、读到空值，结果是**下一次发版必然在 preflight 失败**。改为同时接受两种写法，并在读不到标记时给出明确诊断，而不是「shows version ""」这种会把人带偏的提示。
 - Release notes 里「8 个 APK 产物」与实际 10 个不符，一并改正。
 
-### 说明
+#### 说明
 
 - 清单文件名仍是 `<flavor>.json`（App 端正是按这个名字请求的），只有 APK 二进制带版本号。
 - `docs/index.html` 本次**未改**：当前 latest 仍是 v5.15.0，其资产是旧的固定名，现有链接有效。下次发版前跑一次 `bash scripts/bump_version.sh <新版本>` 即可完成切换（不跑则在 preflight 被拦下）。
 
-## 5.16.0 — EPG 挪到独立分支，与 APK 镜像彻底解耦
+### EPG 挪到独立分支，与 APK 镜像彻底解耦
 
-### 变更
+#### 变更
 
 - EPG（`pl.xml.gz`）从 CNB 镜像仓的 `main:apk/epg/` 挪到**专用 `epg` 分支**。`main` 是发版时用 orphan 分支整体重建的 APK 镜像，每次发布会把 `apk/` 整个换掉；EPG 与 APK 的生命周期完全不同，挤在同一条分支上就只能靠「发版前备份、抓不到再沿用」的补丁兜着。挪到独立分支后，发版流程根本不会碰到它。
 - `epg-sync.yml` 改为推送到 `epg` 分支（分支尚不存在时以 orphan 起一条，兼容首次运行；并修正了首次运行无 `HEAD` 时不能拿 `git diff --cached` 判断的边界）。
 - `scripts/pull_apk.sh` 的 `EPG_URL` 改指 `.../raw/epg/pl.xml.gz`；于是**发版 workflow 里那套 EPG 备份/沿用补丁被删除**（`2f1f04e` 引入的），不再需要。
 - 电视端下载地址不变（`https://pan.imotao.com/file/apk/epg/pl.xml.gz`），**App 侧零改动**。
 
-### 说明
+#### 说明
 
 - 切换顺序是「先建分支并验证 → 再改服务器」：已确认 `epg` 分支的 raw 可取（HTTP 200，内容与旧位置逐字节一致）后才动脚本。
 - 服务器上用临时目录做了全流程演练：退出码 0、89 秒、22 个文件逐字节一致，且演练产物 / 线上服务 / `epg` 分支三处的 EPG sha256 完全相同。
 - 部署留了备份 `/root/pull_apk.sh.bak.20261008193512`；`pull_apk.sh` 回归测试 14 条断言仍全绿。
 
-## 5.16.0 — 拉取脚本改为「先闸门后同步」，并保护 EPG
+### 拉取脚本改为「先闸门后同步」，并保护 EPG
 
-### 修复
+#### 修复
 
 - `scripts/pull_apk.sh`（部署于宝塔 `/root/pull_apk.sh`）此前是**先 `rsync --delete` 再校验**。若 CNB 镜像仓的某次重建不完整（缺 APK 或体积不对），`--delete` 已经把线上目录清空了，事后的校验只能打条日志，损失已经造成。
 - 改为**同步前先过完整性闸门**：逐条清单核对「清单声明的 APK 存在、且体积与 `size` 完全一致」，任一项不符即整轮中止并保留线上文件；`rsync` 之后再复核一次作为兜底。
 - 顺带保护 EPG：`rsync` 排除 `/epg`。节目单本就由脚本开头的 raw 直取负责刷新，生命周期与 APK 无关，镜像重建漏掉它时不该删掉线上正在服务的那份。
 - 外部路径（`DEST` / `RAW` / `CLONE_URL` / `LOG` / `LOCK` / …）改为可由环境变量覆盖，默认值即生产值——脚本因此可以在临时目录里完整演练。
 
-### 说明
+#### 说明
 
 - 默认行为与旧版一致，只新增前置校验；已用桩件跑通五个场景（完整镜像 / 缺 APK / 体积不符 / 镜像无 EPG / 版本未变）。
 
-## 5.16.0 — 发版重建镜像时不再可能丢 EPG
+### 发版重建镜像时不再可能丢 EPG
 
-### 修复
+#### 修复
 
 - `android-release.yml` 重建 CNB 镜像（orphan 分支）时会连工作区里的 `apk/` 一起删掉，其中包含 `epg-sync` 定时推上来的 `pl.xml.gz`；而后面补抓的 `curl ... || true` 一旦失败就静默放过，于是这次发布会把**没有 EPG 的 `apk/`** 强推上去。宝塔 `pull_apk.sh` 的 `rsync --delete` 会立刻删掉线上节目单，直到下一次 `epg-sync`（最长 4 小时）才恢复。
 - 改为**先备份再重建**：重建前置出镜像里现有的 `apk/epg/pl.xml.gz`，抓取失败时沿用它；连兜底都没有时才输出 `::warning`。另外给抓取结果补了 `gzip -t` 校验，避免把错误页当成节目单提交进去（原写法既没校验、也静默失败）。
 - 三条分支（上游可用 / 上游失败有兜底 / 上游失败无兜底）用桩件逐一跑通验证。
 
-### 说明
+#### 说明
 
 - 只动发版 workflow 里的这一个 step，不涉及服务器侧脚本，**无需与 `pull_apk.sh` 协同部署**即可生效。
 
-## 5.16.0 — 确立「GitHub 唯一可写源」，CNB 镜像改为只快进
+### 确立「GitHub 唯一可写源」，CNB 镜像改为只快进
 
-### 修复
+#### 修复
 
 - **`cnb-source-mirror.yml` 的 `git push --mirror` 会破坏 CNB 侧的提交。** `--mirror` 是「强一致 + 删多余引用」语义，实测 dry-run 会把 CNB 的 `main` 从 `a0e9c8c` 强制回滚到 GitHub 的 `4d340ed`，并删除 `refs/notes/npc-push`、`refs/pull/{4,5,6}/*`、`refs/heads/auto/*`。也就是说：**任何在 CNB 侧产生的提交或 PR，都会被下一次同步静默抹掉**（当时已有 `.cnb.yml`、`ci/android.Dockerfile`、third_party 清理等 7 个提交只存在于 CNB 侧）。
 - 改为「只快进、不强制」：分支用不带 `+` 的显式 refspec 推送，标签单独允许强制；并在推送前加**分叉守卫** —— 若某个分支在 CNB 侧领先于 GitHub，直接以 `::error` 失败告警并中止，而不是覆盖。顺带受益的是 `refs/pull/*`、`refs/notes/*` 等平台引用不再被删除。
 - 去掉该步骤的 `continue-on-error: true`：镜像失败必须看得见，此前会被静默吞掉。
 - 令牌改为走 `credential.helper` 而非写进 remote URL，避免日志或报错把 `CNB_TOKEN` 打出来。
 
-### 变更
+#### 变更
 
 - **确立单一真源**：GitHub `motao123/webtv` 是唯一可写源，CNB `code_free/webtv-coding` 为只读镜像。此前 CNB 侧已存在的 7 个提交（`.cnb.yml`、`ci/android.Dockerfile`、third_party 冗余清理、发版门禁修复）已全部回流到本仓库，两侧不再分叉。
 - **`.cnb.yml` 去掉 `main: push` 门禁**：镜像推送同样会触发 push 事件，导致同一份提交在 GitHub CI 与 CNB 上各跑一遍完全相同的编译 + 单测（约 9 分钟/次）。保留 `main: pull_request` 门禁与 `npc:go` 评审——它们只在有人真的在 CNB 侧开 PR 时生效，那才是 GitHub 看不见的场景。
 - README 的双仓库架构说明补上「只读镜像、改代码请到 GitHub」的明确约束。
 
-### 说明
+#### 说明
 
 - 未改任何业务代码，仅调整同步语义、CI 触发范围与文档。
 
-## 5.16.0 — CNB 编译门禁改用自建 Android 镜像
+### CNB 编译门禁改用自建 Android 镜像
 
-### 修复
+#### 修复
 
 - CNB 侧编译门禁此前声明 `cnbcool/android:latest`，但 CNB 的 `cnbcool` 命名空间下**并不存在该镜像**，流水线在 Prepare 阶段就以 `pull access denied` 失败（构建日志实测）。
 - 改为用 `ci/android.Dockerfile` 动态构建：Temurin JDK 21（jammy）+ 发行版 python3.10 + Android cmdline-tools / platform-37 / build-tools 37.0.0，并复制 Go 工具链以支撑 `serverless/webtv-remote-go` 的 `go test`。Dockerfile 有哈希缓存，仅在自身变更时重建。
@@ -137,26 +137,26 @@
 - 镜像换好后门禁又卡在「中转服务测试」：`go test -race` 需要 cgo，容器里默认 `CGO_ENABLED=0`（`go: -race requires cgo; enable cgo by setting CGO_ENABLED=1`）。Dockerfile 补装 `gcc` / `libc6-dev`，stage 里显式 `export CGO_ENABLED=1`——`.github/workflows/remote-relay.yml` 能在 `ubuntu-latest` 上跑通同样是因为那边默认有 gcc。
 - `main` 的 `push` 门禁漏掉了「中转服务测试」这一关（只 `pull_request` 有），代码合入 main 后 Go 侧再无校验。现补上，两条门禁 stage 一致。
 
-### 说明
+#### 说明
 
 - 未改任何业务代码，仅替换编译门禁的构建环境来源。
 
-## 5.16.0 — 清理 third_party 冗余产物
+### 清理 third_party 冗余产物
 
-### 变更
+#### 变更
 
 - 删除从未被引用的 `nextlib-media3ext 1.10.0-0.12.1`（非 `-fongmi-softload`）AAR 与 POM：`gradle/libs.versions.toml` 自 5.5.60 起只指向 `-fongmi-softload`，且两者的 `FfmpegVideoDecoder`/`FfmpegVideoRenderer` 并不通用（softload 版多出 `lowres`/`skipFrame`/`skipLoopFilter` 参数与 ABI 入参），保留只会误导后续升级。
 - 删除 `third_party/nextlib-media3ext-compat/` 孤儿目录：其中的 `NextRenderersFactory.java` 是 `softload` AAR 的反编译参考副本，未被任何构建脚本、settings 或源码引用，且与线上 AAR 已有实现重复。
 - 删除本地 Maven 中 19 个 `-sources.jar` / `-javadoc.jar`（4.3 MB）：仅供阅读，构建不消费；同步清理 18 个 `.module` 中对应的 `SourcePublication` / `JavaDocPublication` 变体，避免元数据指向已删文件。
 
-### 说明
+#### 说明
 
 - 仅动 `third_party/`，未改任何 Java/Kotlin/Gradle 源码；`.module` 交叉校验通过，引用文件 0 缺失。
 - `-fongmi-softload` 的 AAR、POM、`.module` 原样保留。
 
 ## 5.15.0 — 修复全新安装后首页空白，并补齐 TV 端精简版 (2026-10-07)
 
-### 修复
+#### 修复
 
 - **修复全新安装后首页推荐不渲染**（issue #11 反馈：lite 版在 Android 14 上首页空白，且完整版同样复现）：`DependencyTrust` 在冷启动时若拿不到已 resumed 的 Activity 就直接判定"不信任"，而 `App.activity()` 在应用尚未 resume、或首次启动的权限引导把用户带进系统设置（Activity 被 pause）时为空；远程 jar 于是被静默拒绝。更致命的是 `JarLoader` 用 `computeIfAbsent` 把这次失败**当成结果永久缓存成 `SpiderNull`**——所有 `csp_` 站点（含首页推荐）在整个进程生命周期内都再也加载不出来，且不会再弹确认框，只有杀进程重来才可能恢复。现做三处修复：
   - 信任检查改为**等待 Activity 就绪**（最多 30 秒）再弹框，而不是立即静默拒绝；
@@ -168,14 +168,14 @@
 
 - **TV 端精简版**：新增 `leanback-lite-universal.apk` 与 `leanback-lite-arm64_v8a.apk`，与手机端精简版一致——去掉 MPV 播放内核与 Python 运行时，保留 EXO/IJK 双内核、QuickJS/JS 源与全部协议能力。至此精简版共 4 个包（手机 2 + TV 2），完整版 6 个包照常发布，一个版本共 10 个安装包。
 
-### 说明
+#### 说明
 
 - 精简版不含 Python 运行时，**Python 类型直播源（如央视频/央视官网/广东广电官方解析源）不可用**，需要这类源请装完整版。
 - 更新清单与下载页已同步覆盖 10 个包。
 
 ## 5.14.1 — 应用内更新断点续传与重试加固 (2026-10-05)
 
-### 修复
+#### 修复
 
 - **修复弱网下应用内更新反复失败**：更新器此前没有断点续传——下载一中断就删除已下载部分，换源后也从第 0 字节重来；大体积安装包（完整版 113~120MB）在网络抖动叠加 GitHub 不可达时几乎没有生还空间。现改为：失败保留部分文件，重试与换源均通过 HTTP Range 从断点继续；同一源最多重试 3 次，耗尽后换下一源并保留进度。
 - 续传全程有护栏：服务器返回 206 时校验 `Content-Range` 起点；返回 200（忽略 Range，或 CDN 挑战页）先做体积校验再决定是否整体重下；416 或 Range 不匹配自动丢弃部分文件从头下载；清单无体积信息时不续传；下载完成后仍走既有的体积/SHA-256/签名/包名校验，损坏文件被识别后清档重来。
@@ -188,14 +188,14 @@
 - **精简版 APK**（issue #11）：新增 `mobile-lite-arm64_v8a.apk`（约 56MB）与 `mobile-lite-universal.apk`（约 88MB），对比完整版的 114/120MB 减少约一半。精简版去掉 MPV 播放内核（约 37MB）与 Python 运行时（约 21MB），保留 EXO/IJK 双内核、QuickJS/JS 源、迅雷/秘恰等全部协议能力；播放内核选择器在精简版中隐藏 MPV 选项，存量偏好自动回落 EXO。完整版 6 个安装包照常发布，功能不变。
 - 构建系统新增 `edition` 维度（full/lite），Python 依赖改为 full 专属，lite 以编译桩保证同代码库双形态；MPV 原生库按 ABI 经 `addStaticSourceDirectory` 注入 full 变体。
 
-### 说明
+#### 说明
 
 - 精简版与完整版包名相同，互相覆盖安装；应用内更新按 `mobile-lite-*` 独立清单分发，不会跨版本"升级"。
 - 精简版两个包体积均低于 100MB，CNB 镜像可直连下载，应用内更新成功率更高。
 
 ## 5.13.1 — 修复打开视频必崩的空指针 (2026-09-30)
 
-### 修复
+#### 修复
 
 - **修复打开所有视频时崩溃**（issue #10）：release 构建中 R8 把多个 ViewBinding 类横向合并成一个持-holder 类，并且把 `bind()` 里"缺少视图即抛异常"的路径改写为存入 null 后继续，使 `VideoActivity` 初始化读取 OSD 子绑定字段时抛出 `NullPointerException`。现做两层修复：混淆规则禁止 ViewBinding 类参与合并，`bind()` 的错误信息得以保留；播放页对 OSD/音频台子绑定判空，缺失时降级为不显示悬浮信息而不是崩溃。
 - **CI 附带 R8 mapping**：发布构建现在上传各变体的 `mapping.txt` 工件（保留 90 天），线上崩溃堆栈可以精确反混淆，不再依赖本地环境复现。
@@ -222,7 +222,7 @@
 
 ## 5.12.3 — 补齐单元测试基线，并修掉它反查出的两个历史缺陷 (2026-09-21)
 
-### 修复
+#### 修复
 
 - **修复点击异常历史记录崩溃**：`History.getVodId()` 直接取 `getKey().split(SYMBOL)[1]`，key 中缺少分隔符时数组只有一项，抛 `ArrayIndexOutOfBoundsException`。调用点覆盖主页续播、收藏页、历史进入播放页与片单浏览，也就是说一条 key 异常的历史记录被点到就崩。现按长度取值，缺字段返回空串。
 - **修复历史列表观看进度不刷新**：`History.isSameContent()` 只比较片名、封面与创建时间，而它驱动 DiffUtil 决定行是否需要重绑。因此仅播放进度、时长或选集发生变化而创建时间未变时，记录被判定为内容相同、界面不更新。现补齐 `position`/`duration`/`vodRemarks` 比较（本仓库 `History` 无 `wallPic` 字段，故不引入该项）。
@@ -254,7 +254,7 @@
   - 无精确闹钟权限时不再静默失败：直接跳系统「闹钟与提醒」授权页并给出提示；三语文案（en / zh-rCN / zh-rTW）。
   - 改用 `AlarmManagerCompat.canScheduleExactAlarms()`：原代码直接调用 API 31 才有的方法，而 `minSdk = 24`，在接通 UI 后会让 Android 7–11 设备在预约与开机重建时抛 `NoSuchMethodError`（外层只 `catch (Exception)`，拦不住 `Error`）。
 
-### 修复
+#### 修复
 
 - 修复电视端切换线路可能崩溃：`mBinding.flag` 的选中回调在 Leanback 布局过程中直接执行整条换源链路（`onItemClick` → `seamless`），且未校验页面是否已销毁。现改为上游同款 `FlagSelectionListener`——`post` 到布局完成后执行、校验视图仍附着且选中项未被更新列表顶替，`onItemClick` 增加 `isFinishing()/isDestroyed()` 守卫；顺带修掉选中位置为 `-1` 时 `get(position)` 越界的隐患。
 - 修复缺少 `AndroidKeyStore` provider 的设备上云备份 token 无法保存：`key()` 直接抛异常导致整条 GitCloud 备份不可用。现回退到 `noBackupFilesDir` 下的本机 AES 密钥（`local-v1:` 前缀标识），旧密文仍可正常解密，且密钥落盘后会回读校验，校验不过宁可不保存。
@@ -453,7 +453,7 @@
 
 - `ConfigImport.previewVod/previewLive/previewWall`：将 `config.getName().isEmpty()` 全部改为 `TextUtils.isEmpty(config.getName())`（对 null 安全）
 
-### 说明
+#### 说明
 
 - `Config.create(type, url)` 不设置 name，重新添加接口时 name 为 null 触发此 bug
 - 家庭过滤、ServerAuth、强制签名、targetSdk 37 等安全底线均保留
@@ -466,7 +466,7 @@
 
 - `HomeWebController.onPageFinished`：页面加载完成后重置 `lastViewportKey = null`，强制对就绪页面重新注入视口
 
-### 说明
+#### 说明
 
 - 修复后 WebHome 页面可获得 `window.__fmViewport` 与 `--fm-safe-*`/`--fm-chrome-mode` 等视口信息
 - 家庭过滤、ServerAuth、强制签名、targetSdk 37 等安全底线均保留
@@ -485,7 +485,7 @@ WebHome 集成专项**第六步**：移植并接入 `WebHomeRawAdapter`（raw �
 - `HomeWebBridge`：新增 `player.playVodInline` 分发 + `playVodInline`（存内嵌点播并打开播放器）+ 简单 `resolveInlineEpisode`（直接 mediaUrl 的集数可解析）
 - `HomeWebController`：JS 桥暴露 `player.playVodInline`
 
-### 说明
+#### 说明
 
 - `WebHomeRawAdapter` 仅对 git 仓库作用域内的 raw 请求生效，不影响其他请求
 - 内嵌点播支持**直接 mediaUrl** 的集数；`pageUrl` 需 JS 集数解析的场景暂优雅降级（后续可补 JS 往返解析）
@@ -501,7 +501,7 @@ WebHome 集成专项**第五步**：接通 WebHome 页面 → 原生内容的 `o
 - `HomeWebBridge`：新增 `app.openVod` 分发 → `App.post(controller::openVod)`
 - mobile `VodFragment.openVod()`：退出 WebHome 全屏并切回原生首页内容（`homeContent`）
 
-### 说明
+#### 说明
 
 - WebHome 页面可调用 `app.openVod()` 切回原生点播内容；安全非破坏（新增方法/hook，不影响既有调用）
 - 家庭过滤、ServerAuth、强制签名、targetSdk 37 等安全底线均保留
@@ -514,7 +514,7 @@ WebHome 集成专项**第四步**：宿主从窗口 insets 构建**真实安全�
 
 - mobile `VodFragment`：`ViewCompat.setOnApplyWindowInsetsListener` 监听窗口 insets，构建 `WebHomeViewport.from(insets, mode, 0)`（全屏时 chrome 模式为 `immersive`，否则 `normal`）并经 `applyWebHomeViewport` 注入
 
-### 说明
+#### 说明
 
 - 本步让 WebHome 页面获得**真实的安全区/状态栏信息**（`--fm-safe-*`/`--fm-chrome-mode` 等 CSS 变量），配合 Step2/3 的视口管道
 - 仅读取 insets，不做系统栏隐藏操作，安全非破坏
@@ -529,7 +529,7 @@ WebHome 集成专项**第三步**：补全视口管道，让宿主可向 WebHome
 - `HomeWebController` 新增 `setViewport(WebHomeViewport)` / `getViewport()`（外部可注入视口并触发重新注入）
 - mobile `VodFragment`：`getViewport()` 返回当前视口；新增 `applyWebHomeViewport(WebHomeViewport)` 接入 `mWeb.setViewport`
 
-### 说明
+#### 说明
 
 - 本步为**视口数据管道**（host → 控制器 → 页面 `fmviewport`），不涉及系统栏操作，安全非破坏
 - 真实安全区数据的计算（基于窗口 insets）与 chrome 模式（edge/immersive 隐藏系统栏）属更深 UI 子系统，后续单独评估
@@ -545,7 +545,7 @@ WebHome 集成专项**第二步**：把简化版 `fmviewport` 注入升级为 `W
 - `injectViewport()`：改用 `viewport.script(...)`（安全区/手势区/chrome 模式 CSS 变量 + `fmviewport` 事件），并加 key 去重
 - 新增 `setChrome(JsonObject)` / `restoreChrome()` / `normalChrome()`（经 `Listener` 钩子，当前为 no-op）
 
-### 说明
+#### 说明
 
 - 视口协议更丰富（`--fm-chrome-mode`/`--fm-system-bars-hidden`/手势区等），即使 `viewport` 暂为 EMPTY 也输出完整结构
 - chrome 模式尚未由宿主 Activity 实际应用（Step3）；`Listener` 钩子默认 no-op，现有行为不变
@@ -564,7 +564,7 @@ WebHome 完整集成专项的**第一步**：移植 chrome 模式与视口（vie
 
 - `HomeWebController.Listener` 新增 5 个 default no-op 方法：`applyDefaultChrome`/`setChrome`/`restoreChrome`/`getViewport`/`openVod`（不破坏现有实现者）
 
-### 说明
+#### 说明
 
 - 本步为**非破坏性基础**：接口方法均为 default no-op，现有 WebHome 行为不变
 - 后续步骤将接入 chrome()/视口注入，并在宿主 Activity 应用 chrome 模式（edge/immersive）
@@ -582,7 +582,7 @@ WebHome 完整集成专项的**第一步**：移植 chrome 模式与视口（vie
 
 - `WebHomeExtensionRegistry.loadRemote`：远程扩展 URL 先经 `GitRawUrlResolver` 转成 raw 地址再加载
 
-### 说明
+#### 说明
 
 - 纯 Java 工具，无 WebView 依赖；不影响已配置的 raw 地址或直接网址
 - 家庭过滤、ServerAuth、强制签名、targetSdk 37 等安全底线均保留
@@ -596,7 +596,7 @@ WebHome 完整集成专项的**第一步**：移植 chrome 模式与视口（vie
 - `MpvPlayer.setAudioEqualizer` → 重构为 `setAudioDsp(freq, gainDb, loudness, compressorRatio, limiter)`，按需在 `af` 链追加 `loudnorm`/`acompressor`/`alimiter`；旧方法保留并委托
 - `MpvPlayerEngine.applyAudioSetting`：`getStabilityAmount()` 映射为压缩比（1 + 稳定度×2.5），`shouldLimitOutput()` 启用限幅
 
-### 说明
+#### 说明
 
 - **默认关闭** → 默认用户 `af` 链与均衡器时代完全一致，零行为变化；仅开启相应音效时才追加对应滤镜
 - `safeSetPropertyString` 静默吞异常：即使打包的 MPV 不支持某滤镜也只不生效，不崩溃
@@ -611,7 +611,7 @@ WebHome 完整集成专项的**第一步**：移植 chrome 模式与视口（vie
 - `MpvPlayer.setAudioEqualizer(freq, gain, loudness)`：`loudness=true` 时在均衡器链后追加 `,loudnorm`；旧的 2 参方法保留并委托
 - `MpvPlayerEngine.applyAudioSetting`：传入 `config.isLoudnessEnabled()`；`clearAudioEffect` 清空
 
-### 说明
+#### 说明
 
 - **默认关闭** → 默认用户 `af` 链与 v5.5.84 完全一致（零行为变化）；仅在用户开启"响度"时才追加 `loudnorm`
 - `safeSetPropertyString` 静默吞异常：即使打包的 MPV 不支持 `loudnorm` 也不会崩溃（仅该滤镜不生效）
@@ -633,7 +633,7 @@ WebHome 完整集成专项的**第一步**：移植 chrome 模式与视口（vie
 - `History.delete()`（单条）/ `History.delete(cid)`（批量清空）：删除后触发删除事件 Webhook
 - `PlaybackProgressWriter.deleteInternal`：`notify=true` 时触发 `onHistoryDeleted`
 
-### 说明
+#### 说明
 
 - Webhook 仅在已配置且同步开启时发送；删除事件受墓碑保护，远端不会复活已删记录
 - 家庭过滤、ServerAuth、强制签名、targetSdk 37 等安全底线均保留
@@ -647,7 +647,7 @@ WebHome 完整集成专项的**第一步**：移植 chrome 模式与视口（vie
 - `LiveViewModel.parse`：直播源加载失败时（非 ExtractException 的网络/解析错误）也通过 url 通道 post 出 `Result.error`，让 `LiveActivity.onError` 显示清晰错误提示（新增 `live_load_failed` 字符串，三语言）
 - `LiveActivity.startFlow()`（mobile + leanback）：增加 `mChannel == null` 判空，避免直播源加载失败（尚无选中频道）时 NPE
 
-### 说明
+#### 说明
 
 - 直播源本身受网络/代理稳定性影响（如 gh.927223.xyz 等 GitHub 代理间歇 403/超时）；App 侧现在能明确提示"加载失败"，用户可切换到其他可用直播源
 - 家庭过滤、ServerAuth、强制签名、targetSdk 37 等安全底线均保留
@@ -661,7 +661,7 @@ WebHome 完整集成专项的**第一步**：移植 chrome 模式与视口（vie
 - `MpvPlayer.setAudioEqualizer(frequenciesHz, gainsDb)`：把频段增益映射为 MPV `af=equalizer=...` 链；全零/空时清空 `af`
 - `MpvPlayerEngine` 覆盖 `supportsAudioSetting()`/`applyAudioSetting()`/`clearAudioEffect()`，复用既有 `AudioEffectConfig`（频段 32Hz–16kHz，增益 dB = level/100）
 
-### 说明
+#### 说明
 
 - 仅均衡器频段部分（纯 MPV `equalizer` af，无 LUT 冲突）；响度/稳定/限幅等 DSP 仍走 EXO 路线
 - `af` 为 MPV 标准滤镜语法，设置失败静默（不影响播放）
@@ -677,7 +677,7 @@ WebHome 完整集成专项的**第一步**：移植 chrome 模式与视口（vie
 - APK 仍以 git blob 存储（CNB raw 才能服务真实文件）；LFS 已被证明会返回指针、破坏下载，不采用
 - 防呆：dist 无 APK 时跳过重建，避免清空镜像
 
-### 说明
+#### 说明
 
 - force-push 失败时自动保持旧历史（`continue-on-error`，不影响发布）
 - 首次生效后，镜像 main 分支历史即重置为最新发布的内容；CNB 侧旧对象由其 GC 回收
@@ -696,7 +696,7 @@ WebHome 完整集成专项的**第一步**：移植 chrome 模式与视口（vie
 
 - `App.startBackgroundServices` 启动 `PlaybackRemoteSyncer`（首次 3s、周期 5min，受同步总开关与隐身模式保护）
 
-### 说明
+#### 说明
 
 - 需自建中转服务（Cloudflare/Deno/Vercel/Go/Rust，见 webhome-devkit 文档）并配置远端源后才生效；无配置时静默不动作
 - 至此播放记录同步四步全部完成：只读上报 / Webhook / 进度写入 / 删除墓碑 / 远端同步
@@ -711,7 +711,7 @@ universal APK（含 arm64+armv7 双 ABI 原生库）无法安全压到 CNB raw �
 - `Updater.onConfirm`：对 CNB 的 APK URL 做 HEAD 探测，不可达（413/网络失败）时改用 GitHub Releases URL
 - arm64/armv7（<100 MiB，CNB 可服务）仍走 CNB 快源；universal（超限）自动回退 GitHub
 
-### 说明
+#### 说明
 
 - 探测在后台线程执行，5s 超时，不影响主线程
 - 家庭过滤、ServerAuth、强制签名、targetSdk 37 等安全底线均保留
@@ -725,7 +725,7 @@ v5.5.79 引入的 **git-lfs** 镜像同步，导致 CNB raw 对 `*.apk` 返回 *
 - CI 镜像同步：移除 `git lfs track`，并清理残留 `.gitattributes` 的 LFS 行；APK 作为 git blob 推送
 - 仍保留 `resConfigs`（arm64/armv7 APK 已 <100 MiB）与"只保留最新版本 APK"
 
-### 说明
+#### 说明
 
 - arm64/armv7 APK **99/86 MiB**（<100 MiB），CNB raw 可正常下载；universal（双 ABI）仍 102-103 MiB 略超限
 - 镜像历史此前已累积 ~10 GiB，需在 CNB 仓库手动清理（本版起不再因 LFS 指针占用额外空间）
@@ -744,7 +744,7 @@ CNB 镜像的 raw 文件端点有 **100 MiB 硬限制**，此前 APK（100-105 M
 - CI：新增 "Check APK sizes" 步骤，超限输出 warning
 - CI 镜像同步：改用 **git-lfs** 存储 APK 并**只保留最新版本**（删除旧 APK），避免镜像仓库继续膨胀（此前累计到 ~10 GiB）
 
-### 说明
+#### 说明
 
 - universal APK 因同时含 arm64+armv7 双 ABI 原生库仍略超 100 MiB；arm64/armv7 设备（绝大多数，含 Pixel 7 Pro）已可正常通过 CNB 更新
 - 已有 10 GiB 镜像历史需在 CNB 仓库手动清理（重写历史或重建镜像），本版起不再继续增长
@@ -772,7 +772,7 @@ CNB 镜像的 raw 文件端点有 **100 MiB 硬限制**，此前 APK（100-105 M
 - 写入路径增加墓碑检查：已删记录不复活
 - `PlaybackProgressApplyResult` 补回删除相关重载
 
-### 说明
+#### 说明
 
 - 全量清理需 `confirm=true`，按站点清理需 `siteKey`；受同步总开关 + 本机写入开关 + 隐身三重保护
 - 墓碑用 Prefers 而非 Room（webhtv 用 Room 实体需 DB 迁移，此处避免）；远端同步（Step4b）后续
@@ -796,7 +796,7 @@ CNB 镜像的 raw 文件端点有 **100 MiB 硬限制**，此前 APK（100-105 M
 
 - `server/Nano` 注册写入端点
 
-### 说明
+#### 说明
 
 - 受 `ViewingRecordSyncStore` 总开关 + 本机 API 修改开关 + 隐身模式三重保护
 - 仅本地写入；删除/远端同步/墓碑因依赖额外存储与更复杂对账，暂未移植
@@ -816,7 +816,7 @@ CNB 镜像的 raw 文件端点有 **100 MiB 硬限制**，此前 APK（100-105 M
 
 - mobile/leanback `VideoActivity`：`getPlayer`/`onStateChanged`/`onPlayingChanged`/`onTimeChanged`/`onStop`/`onDestroy` 接线到 `PlaybackEventCollector`
 
-### 说明
+#### 说明
 
 - 本步仅 Webhook 上报；进度写入 API 与远端同步因依赖 DB/删除墓碑/远端配置，留待后续
 - 默认关闭（`ViewingRecordSyncStore.isEnabled` 默认 true，但无 Webhook 配置时不发）；删除事件处理暂未移植
@@ -844,7 +844,7 @@ CNB 镜像的 raw 文件端点有 **100 MiB 硬限制**，此前 APK（100-105 M
 
 - mobile/leanback `VideoActivity`：播放启动时 `PlaybackRuntime.setPlayer/updateHistory` 填充运行时，`onDestroy` 清理
 
-### 说明
+#### 说明
 
 - 仅只读上报，不含写入/远端同步/Webhook（后续 Step2/Step3 逐步加入）
 - 隐身模式或无可读记录时返回 404；字段策略与 webhtv 一致（`apiSafe` 不含 episodeUrl 等敏感字段）
@@ -861,7 +861,7 @@ CNB 镜像的 raw 文件端点有 **100 MiB 硬限制**，此前 APK（100-105 M
 - mobile `SiteAdapter`：`sortSites` 恢复顺序；新增 `drag(from,to)` 完成拖拽移动并保存
 - mobile `SiteDialog`：挂载 `ItemTouchHelper`（上/下拖拽），长按拖动站点即可调整顺序
 
-### 说明
+#### 说明
 
 - 仅手机端（leanback 为遥控器 UI，无触屏拖拽，与 webhtv 范围一致）
 - 手动顺序优先于站点健康排序（`SiteOrderStore.sortSites` 最后执行，仅在存在已保存顺序时生效）
@@ -882,7 +882,7 @@ CNB 镜像的 raw 文件端点有 **100 MiB 硬限制**，此前 APK（100-105 M
 - `ExoUtil.buildPlayer` / `buildRenderersFactory` 支持注入 `AudioProcessor`：通过覆写 `NextRenderersFactory.buildAudioSink`，把 `AudioEffectProcessor` 挂进 `DefaultAudioSink` 音频链
 - `ExoPlayerEngine` 改用 `ExoAudioEffectController`，把软件 processor 注入音频渲染器；`applyAudioSetting()` / `clearAudioEffect()` / `rebuild()` 同步更新
 
-### 说明
+#### 说明
 
 - 音频效果默认关闭，仅用户启用时生效；软件通路主要服务于 API<28 或需要响度/稳定等 DSP 的低版本设备
 - 声道混合为内部实现（与 TV-fongmi 的 mpvplayer 扩展算法等效），未引入额外依赖
@@ -914,7 +914,7 @@ CNB 镜像的 raw 文件端点有 **100 MiB 硬限制**，此前 APK（100-105 M
 - `VideoActivity`（mobile 与 leanback）`onPlayerKernel()` / `onDecode()`：切换内核/编码时包裹 `try/catch(Throwable)`，引擎重建失败不闪退
 - `PlayerManager.switchPlayer()`：重建后 `setMediaItem()` / `seekTo()` 包裹 `try/catch(Throwable)`，媒介装载异常不闪退
 
-### 说明
+#### 说明
 
 - 崩溃仅凭 issue 描述（无 logcat 堆栈）无法唯一归因，本版先做整体健壮性加固；若仍复现，需补充崩溃日志定位视频 GL 特效或音频均衡器路径
 - 软件 DSP 音频管线（TV-fongmi 完整版）因依赖 `AudioChannelMix` 且 webtv 的 mpvplayer 为精简 shim，暂缓移植
@@ -935,7 +935,7 @@ CNB 镜像的 raw 文件端点有 **100 MiB 硬限制**，此前 APK（100-105 M
 - `ExoPlayerEngine` 实现 `applyAudioSetting()` / `clearAudioEffect()` / `supportsAudioSetting()`（读取 EXO 音频声道数构建 EQ 配置）
 - `PlayerEngine` 新增 `applyAudioSetting()` / `clearAudioEffect()` / `supportsAudioSetting()` 默认实现；`PlayerManager` 新增对应委托与 `canSetAudioSetting()`
 
-### 说明
+#### 说明
 
 - 首期仅含均衡器预设 + 限幅（`DynamicsProcessing`），**不含**软件 DSP 通路（需自定义渲染器注入 `AudioChannelMix`，留待后续）与 MPV 滤镜；API 28 以下优雅降级为「不支持」
 - 家庭过滤、ServerAuth、强制签名、targetSdk 37 等安全底线均保留
@@ -955,7 +955,7 @@ CNB 镜像的 raw 文件端点有 **100 MiB 硬限制**，此前 APK（100-105 M
 - `PlayerManager` 改用引擎级 `applyVideoProfile()`/`clearVideoProfile()`，`canSetVideoSetting()` 现对 EXO 与 MPV 均可用
 - 视频设置对话框在 EXO 与 MPV 下均可开启调节
 
-### 说明
+#### 说明
 
 - MPV 采用 VO 属性实现，未覆盖色温/锐度/阴影（MPV 无对应原生属性，仅亮度/对比度/饱和度/伽马/色相生效）；与 LUT 互不冲突
 - 家庭过滤、ServerAuth、强制签名、targetSdk 37 等安全底线均保留
@@ -978,7 +978,7 @@ CNB 镜像的 raw 文件端点有 **100 MiB 硬限制**，此前 APK（100-105 M
 - `BaseBottomSheetDialog` 新增 `getMaxHeight()` 高度上限支持
 - 顺带移植 `SliderUtil`（滑杆吸附工具）
 
-### 说明
+#### 说明
 
 - 本次为 EXO-first 精简版：未含 TV-fongmi 的完整预设系统（自然/鲜艳等 12 档 chips）与对比预览、未实现 MPV 端均衡器/shader（webtv 内嵌 MpvPlayer 缺 `MpvVideoEqualizer` API，待后续）
 - 家庭过滤、ServerAuth、强制签名、targetSdk 37 等安全底线均保留
@@ -1001,7 +1001,7 @@ CNB 镜像的 raw 文件端点有 **100 MiB 硬限制**，此前 APK（100-105 M
 - `Download` 新增 `maxBytes` 上限；`FileUtil` 新增带限制与穿越防护的 4 参 `zipDecompress`
 - `BaseBottomSheetDialog` 新增预测性返回（back dispatcher）支持
 
-### 说明
+#### 说明
 
 - 仅移植在线搜索，不含 TV-fongmi 的字幕外观/样式调整（webtv 已有 `SubtitleDialog`）
 - Assrt Token 需用户自行填写（`VodConfig.getAssrt` 配置字段未引入）
@@ -1011,7 +1011,7 @@ CNB 镜像的 raw 文件端点有 **100 MiB 硬限制**，此前 APK（100-105 M
 
 修复安卓 17 / Pixel 7 Pro 手机版闪退（issue #7），并从上游 WebHomeTV 移植 EXO 自适应降速网络保护（最小可验证集）。
 
-### 修复
+#### 修复
 
 - **WebView 渲染进程崩溃闪退**: `CustomWebView` 新增 `onRenderProcessGone` 兜底（镜像 HomeWebController 模式，记日志后正常结束解析并返回 true），避免解析页渲染进程崩溃拖垮整个 App —— 对应 issue #7 安卓 17 手机版闪退
 
@@ -1021,7 +1021,7 @@ CNB 镜像的 raw 文件端点有 **100 MiB 硬限制**，此前 APK（100-105 M
 - 依据缓冲水位快慢趋势，VOD 播放时在网络吃紧自动在 0.85～1.00x 之间动态降速、网络恢复后平滑回升；仅作用于 EXO 内核 + 点播 + 用户 1.0x 场景
 - 增强设置新增「网络保护」开关（跟随性能自动档默认开启），经 `ExoPerformanceSetting` 偏好管理，`PlayerManager.setSpeed` 挂钩用户手动调速
 
-### 说明
+#### 说明
 
 - 采用纯 buffer 模式（不含遥测/A-B 实验链），最小可验证移植，不影响 IJK/MPV 内核
 - **已知后续项**: `librtmp-jni.so`（由 media3-datasource-rtmp 引入）ELF 仅 4KB 对齐，在 16KB 页大小设备（如 Pixel 7 Pro 安卓 17）上播放 RTMP 流时存在 dlopen 崩溃风险；当前应用已开启 `pageSizeCompat="enabled"` 兼容模式，后续需将 RTMP 制品重编至 16KB 对齐或评估移除
@@ -1039,7 +1039,7 @@ CNB 镜像的 raw 文件端点有 **100 MiB 硬限制**，此前 APK（100-105 M
 - **本地管理页同步**: Manage/Action 推送端与接收端支持 `loginStateFiles`
 - **加密 Token 存储**: 最小 `GitCloudTokenStore`（Android Keystore AES/GCM），供登录态 token 导入导出
 
-### 说明
+#### 说明
 
 - 仅移植登录态学习，不引入完整 GitCloud / Remote Trust / 观影同步
 - 登录态默认勾选同步；路径与 token 不落明文日志
@@ -1056,7 +1056,7 @@ CNB 镜像的 raw 文件端点有 **100 MiB 硬限制**，此前 APK（100-105 M
 - **MPV 内核**: 内置 libmpv assets，提升软解与特殊片源兼容
 - **Media3**: 对齐上游 `1.11.0-alpha01-fongmi`（MediaTitle → MediaEdition）
 
-### 说明
+#### 说明
 
 - APK 体积会明显增大（IJK + MPV native）
 - 默认内核仍为 EXO，不影响既有播放连续性
@@ -1165,7 +1165,7 @@ CNB 镜像的 raw 文件端点有 **100 MiB 硬限制**，此前 APK（100-105 M
 
 修复 TV 端自动播放下一集后实际倍速恢复为 x1，但界面仍显示历史倍速的问题。
 
-### 修复
+#### 修复
 
 - **倍速保持**: 每次播放器准备新媒体源后重新应用当前剧集历史倍速，保证自动下一集、手动换集和刷新播放时实际倍速与界面显示一致
 
@@ -1250,7 +1250,7 @@ CNB 镜像的 raw 文件端点有 **100 MiB 硬限制**，此前 APK（100-105 M
 
 回滚一次未继续保留的实验性功能。
 
-### 变更
+#### 变更
 
 - 引入了一组后续未继续保留的实验性界面与同步逻辑
 - 后续版本已整体移除
@@ -1276,7 +1276,7 @@ CNB 镜像的 raw 文件端点有 **100 MiB 硬限制**，此前 APK（100-105 M
 
 修复 5.5.32 数据库迁移导致闪退的问题。
 
-### 修复
+#### 修复
 
 - **DB 初始化加固**: `AppDatabase.get()` 首次创建失败时自动删除旧数据库重新创建，避免迁移异常导致闪退
 
@@ -1288,7 +1288,7 @@ EPG 节目提醒持久化到数据库，设备重启后自动重建闹钟。
 
 - **EPG 持久化**: 节目提醒保存到 Room 数据库，重启和 BOOT_COMPLETED 时自动重建所有未过期的提醒闹钟
 
-### 修复
+#### 修复
 
 - **清理死代码**: 删除未使用的 `CharsetDetectDataSource.java`
 
@@ -1296,7 +1296,7 @@ EPG 节目提醒持久化到数据库，设备重启后自动重建闹钟。
 
 代码整洁和 CI 稳定性改进。
 
-### 修复
+#### 修复
 
 - **死代码清理**: 删除未使用的 `CharsetDetectDataSource.java`（v5.5.20 已从 `MediaSourceFactory` 移除引用）
 
@@ -1304,7 +1304,7 @@ EPG 节目提醒持久化到数据库，设备重启后自动重建闹钟。
 
 修复版本更新下载走 GitHub 慢和下载后不弹出安装的问题。
 
-### 修复
+#### 修复
 
 - **镜像选择**: `isChina()` 新增系统语言/地区本地检测，不再仅依赖 `ip-api.com`（国内可能被墙导致默认走 GitHub）
 - **安装确认**: 下载完成后改用 `ACTION_INSTALL_PACKAGE` 触发安装，并先弹出 Toast 提示
@@ -1314,7 +1314,7 @@ EPG 节目提醒持久化到数据库，设备重启后自动重建闹钟。
 
 修复电视直播源 token 过期后无法自动刷新的问题。
 
-### 修复
+#### 修复
 
 - **直播错误重试**: `LiveActivity.onError` 播放失败时先调用 `mViewModel.getUrl(mChannel)` 从 Spider/DIYP 源重新获取新 URL（带新鲜 token），再进入自动换台流程
 - **BAD_HTTP_STATUS 重试**: `ExoPlayerEngine` 把 HTTP 错误码加入可重试列表
@@ -1323,7 +1323,7 @@ EPG 节目提醒持久化到数据库，设备重启后自动重建闹钟。
 
 修复电视直播显示 `Bad HTTP Status` 无法播放的问题。
 
-### 修复
+#### 修复
 
 - **HTTP 错误重试**: `ExoPlayerEngine.handleError` 将 `ERROR_CODE_IO_BAD_HTTP_STATUS`（HTTP 605 等）加入可重试列表，不再直接判定为 FATAL，给直播源 token 刷新留一次机会
 
@@ -1331,7 +1331,7 @@ EPG 节目提醒持久化到数据库，设备重启后自动重建闹钟。
 
 修复点击版本更新后只显示“正在检测更新”但没有后续结果的问题。
 
-### 修复
+#### 修复
 
 - **JSON 文件名**: 更新检查改为读取当前 ABI 对应的 `mobile-arm64_v8a.json` / `leanback-arm64_v8a.json`，不再请求不存在的 `mobile.json`
 - **GitHub 路径**: GitHub Release assets 直接走 `latest/download/*.json`
@@ -1341,7 +1341,7 @@ EPG 节目提醒持久化到数据库，设备重启后自动重建闹钟。
 
 修复同意更新源后 WebHome 调用 Bridge 时闪退的问题。
 
-### 修复
+#### 修复
 
 - **WebView 线程安全**: `HomeWebBridge` 诊断不再从后台线程读取 `WebView.getUrl()`，改用 `HomeWebController` 在主线程维护的 origin 缓存
 
@@ -1349,7 +1349,7 @@ EPG 节目提醒持久化到数据库，设备重启后自动重建闹钟。
 
 修复点击版本更新时误提示 `Already up to date` 的问题。
 
-### 修复
+#### 修复
 
 - **更新源**: GitHub 更新地址改为当前仓库 Release assets，不再读取旧的外部 Release JSON
 - **版本号**: CI 生成 JSON 时使用 `app/build.gradle` 的 `versionCode`，避免 `github.run_number` 小于 APK 版本号导致误判
@@ -1385,7 +1385,7 @@ EPG 节目提醒持久化到数据库，设备重启后自动重建闹钟。
 
 P2-7 字幕编码检测 (`CharsetDetectDataSource`) 被错误地应用到所有媒体数据源，其缓冲读取逻辑在遇到小文件（<5MB）时会在流末尾重复返回已读数据，导致 ExoPlayer 的 HLS 解析器收到损坏的播放列表数据（`Input does not start with the #EXTM3U header`）。
 
-### 修复
+#### 修复
 
 - 移除全局 `CharsetDetectDataSource.Factory` 包装器，恢复原始 `DefaultDataSource.Factory`
 
@@ -1405,7 +1405,7 @@ P0 安全提交将 `cleartextTrafficPermitted` 改为 `false`，意图是只允�
 
 修复备份/恢复和自定义 CSP 功能在 Android 11+ 上静默失败的问题。
 
-### 修复
+#### 修复
 
 - **Path.tv()**: 备份文件从外部存储迁移到内部存储，无需 `MANAGE_EXTERNAL_STORAGE` 权限
 - **CustomCspSetting**: CSP 配置目录从 `Path.root("TV/CustomCsp")` 迁移到 `Path.files()`
@@ -1422,7 +1422,7 @@ v5.5.7 安全审计移除了 `MANAGE_EXTERNAL_STORAGE` 权限，v5.5.10 将 `has
 
 修复 EventBus 注解处理器导致的编译错误。
 
-### 修复
+#### 修复
 
 - **EpgParser**: 合并重复的 `getEpg()` 方法，XXE 安全校验统一走一个入口
 - **EventBus**: `Startup.java` 改用 `EventBus.getDefault()`，移除 `eventBusIndex` 注解处理器参数
@@ -1435,7 +1435,7 @@ v5.5.7 安全审计移除了 `MANAGE_EXTERNAL_STORAGE` 权限，v5.5.10 将 `has
 
 基于 v5.5.12 的 P0 级安全修复版本，修复 6 个严重安全漏洞。
 
-### 修复
+#### 修复
 
 - **EPG XXE 防护**: EpgParser 拒绝 `<!DOCTYPE` 并启用 `FEATURE_SECURE_PROCESSING`
 - **EPG GZIP 炸弹防护**: 添加解压大小限制
@@ -1456,7 +1456,7 @@ v5.5.7 安全审计移除了 `MANAGE_EXTERNAL_STORAGE` 权限，v5.5.10 将 `has
 
 修复每次启动都跳转「所有文件访问」权限页面但无法授权的问题。
 
-### 修复
+#### 修复
 
 - **Setting.hasFileManager()**: 始终返回 `false`（v5.5.7 已移除 `MANAGE_EXTERNAL_STORAGE`，PermissionX 无法处理未声明的权限）
 - **Setting.hasFileAccess()**: Android 11+ 直接返回 `true`（应用内部存储无需权限，文件选择器走 SAF）
@@ -1466,7 +1466,7 @@ v5.5.7 安全审计移除了 `MANAGE_EXTERNAL_STORAGE` 权限，v5.5.10 将 `has
 
 修复 v5.5.8 编译错误。
 
-### 修复
+#### 修复
 
 - **CacheManager**: 移除 `Path.mkdir()` 私有方法调用（`Path.exo()` 已自动创建目录）
 - **EpgReminder**: `buildNotification()` 改为 `public static`，修复跨包访问权限
